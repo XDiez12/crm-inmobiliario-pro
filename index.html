@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>CRM Inmobiliario Pro</title>
+  <meta name="description"
+    content="CRM profesional para agentes inmobiliarios. Gestiona clientes, agenda visitas, programa recordatorios y lleva seguimiento completo." />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#7c5cfc" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CRM Pro" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- SheetJS para Exportar / Importar Excel (.xlsx, .csv) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+
+  <div class="app-shell">
+
+    <!-- ======= SIDEBAR ======= -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-icon">🏠</div>
+        <div>
+          <div class="logo-text">CRM Inmobiliario</div>
+          <div class="logo-sub">Panel de Agente</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-label">Principal</div>
+
+        <div class="nav-item active" data-view="dashboard" onclick="navigate('dashboard')">
+          <span class="nav-icon">📊</span>
+          <span class="nav-text">Dashboard</span>
+        </div>
+
+        <div class="nav-item" data-view="clients" onclick="navigate('clients')">
+          <span class="nav-icon">👥</span>
+          <span class="nav-text">Clientes</span>
+        </div>
+
+        <div class="nav-label">Agenda</div>
+
+        <div class="nav-item" data-view="agenda" onclick="navigate('agenda')">
+          <span class="nav-icon">📅</span>
+          <span class="nav-text">Agenda</span>
+        </div>
+
+        <div class="nav-item" data-view="calendar" onclick="navigate('calendar')">
+          <span class="nav-icon">🗓️</span>
+          <span class="nav-text">Calendario</span>
+        </div>
+
+        <div class="nav-label">Seguimiento</div>
+
+        <div class="nav-item" data-view="followups" onclick="navigate('followups')">
+          <span class="nav-icon">🔔</span>
+          <span class="nav-text">Seguimientos</span>
+          <span class="nav-badge" id="followup-badge">0</span>
+        </div>
+
+        <div class="nav-label">Marketing</div>
+
+        <div class="nav-item" data-view="marketing" onclick="navigate('marketing')">
+          <span class="nav-icon">📣</span>
+          <span class="nav-text">Planes Mensuales</span>
+        </div>
+
+        <div class="nav-item" data-view="content" onclick="navigate('content')">
+          <span class="nav-icon">💡</span>
+          <span class="nav-text">Ideas de Contenido</span>
+        </div>
+
+      </nav>
+
+
+      <div class="sidebar-footer">
+        <button id="mute-btn" class="btn btn-ghost btn-sm" onclick="toggleMute()"
+          style="width:100%;margin-bottom:6px;justify-content:center;font-size:12px;border:1px solid var(--border)">🔔
+          Sonido: ON</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.open('https://calendar.google.com', '_blank')"
+          style="width:100%;margin-bottom:8px;justify-content:center;font-size:12px;border:1px solid var(--border);color:var(--primary)"
+          title="Abrir Google Calendar de antonydiezcaceres@gmail.com">📅 Google Calendar</button>
+        <div class="sidebar-user">
+          <div class="avatar" id="agent-avatar">A</div>
+          <div class="user-info">
+            <div class="user-name" id="agent-name">Mi Agente</div>
+            <div class="user-role">Agente Inmobiliario</div>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ======= MAIN ======= -->
+    <div class="main-content">
+
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <button class="btn btn-ghost btn-icon hamburger-btn" id="hamburger-btn" onclick="toggleMobileSidebar()"
+          title="Menú">☰</button>
+        <div class="topbar-title" id="topbar-title">Dashboard <span id="topbar-date"></span></div>
+        <div class="topbar-actions">
+          <span id="cloud-sync-badge" title="Conexión en tiempo real con Firestore" style="font-size:11px;padding:4px 9px;border-radius:20px;background:rgba(46,213,115,0.12);color:#2ed573;display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(46,213,115,0.3);font-weight:500">🟢 Conectado</span>
+          <button class="btn btn-ghost btn-icon" onclick="openExportModal()" title="Exportar datos">💾</button>
+          <button class="btn btn-primary" id="topbar-action-btn" onclick="openAddClientModal()">
+            + Nuevo
+          </button>
+        </div>
+      </header>
+
+      <!-- MOBILE SIDEBAR OVERLAY -->
+      <div class="mobile-overlay" id="mobile-overlay" onclick="toggleMobileSidebar()"></div>
+
+      <!-- PAGE CONTENT -->
+      <main class="page-content">
+
+        <!-- ===== DASHBOARD VIEW ===== -->
+        <div class="view active" id="view-dashboard">
+
+          <div class="stats-grid" id="stats-grid">
+            <div class="stat-card hot">
+              <div class="stat-icon">🔥</div>
+              <div class="stat-value" id="stat-hot">0</div>
+              <div class="stat-label">Clientes Calientes</div>
+            </div>
+            <div class="stat-card warm">
+              <div class="stat-icon">🌡️</div>
+              <div class="stat-value" id="stat-warm">0</div>
+              <div class="stat-label">Clientes Tibios</div>
+            </div>
+            <div class="stat-card cold">
+              <div class="stat-icon">❄️</div>
+              <div class="stat-value" id="stat-cold">0</div>
+              <div class="stat-label">Clientes Fríos</div>
+            </div>
+            <div class="stat-card accent">
+              <div class="stat-icon">📞</div>
+              <div class="stat-value" id="stat-calls-today">0</div>
+              <div class="stat-label">Llamadas Hoy</div>
+            </div>
+            <div class="stat-card gold">
+              <div class="stat-icon">🏡</div>
+              <div class="stat-value" id="stat-visits-today">0</div>
+              <div class="stat-label">Visitas Hoy</div>
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div>
+              <div class="section-header">
+                <div class="section-title">⚡ Próximos Eventos</div>
+                <button class="btn btn-secondary btn-sm" onclick="navigate('agenda')">Ver todos</button>
+              </div>
+              <div class="upcoming-list" id="upcoming-list">
+                <div class="empty-state" style="padding:30px 0">
+                  <div class="empty-icon">📭</div>
+                  <p>Sin eventos próximos</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="section-header">
+                <div class="section-title">🔔 Seguimientos Pendientes</div>
+                <button class="btn btn-secondary btn-sm" onclick="navigate('followups')">Ver todos</button>
+              </div>
+              <div class="followup-list" id="dash-followups">
+                <div class="empty-state" style="padding:30px 0">
+                  <div class="empty-icon">✅</div>
+                  <p>Todo al día</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ===== CLIENTS VIEW ===== -->
+        <div class="view" id="view-clients">
+          <div class="filter-bar">
+            <div class="search-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" class="search-input" id="client-search" placeholder="Buscar cliente..."
+                oninput="renderClients()" />
+            </div>
+            <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">Todos</button>
+            <button class="filter-btn hot" data-filter="hot" onclick="setFilter('hot', this)">🔥 Caliente</button>
+            <button class="filter-btn warm" data-filter="warm" onclick="setFilter('warm', this)">🌡️ Tibio</button>
+            <button class="filter-btn cold" data-filter="cold" onclick="setFilter('cold', this)">❄️ Frío</button>
+            <div class="filter-actions" style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" onclick="exportClientsToExcel()" title="Exportar clientes a un archivo Excel (.xlsx)">
+                📊 Exportar Excel
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="triggerImportExcel()" title="Importar clientes desde archivo Excel (.xlsx, .csv)">
+                📥 Importar Excel
+              </button>
+              <input type="file" id="excel-import-input" accept=".xlsx, .xls, .csv" style="display:none" onchange="importClientsFromExcel(event)" />
+            </div>
+          </div>
+
+          <div class="clients-grid" id="clients-grid">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- ===== AGENDA VIEW ===== -->
+        <div class="view" id="view-agenda">
+          <div class="filter-bar">
+            <button class="filter-btn active" data-event-filter="all"
+              onclick="setEventFilter('all', this)">Todos</button>
+            <button class="filter-btn" data-event-filter="call" onclick="setEventFilter('call', this)">📞
+              Llamadas</button>
+            <button class="filter-btn" data-event-filter="visit" onclick="setEventFilter('visit', this)">🏡
+              Visitas</button>
+            <button class="filter-btn" data-event-filter="pending" onclick="setEventFilter('pending', this)">⏳
+              Pendientes</button>
+            <button class="filter-btn" data-event-filter="today" onclick="setEventFilter('today', this)">📅 Hoy</button>
+            <div style="flex:1"></div>
+            <button class="btn btn-primary btn-sm" onclick="openAddEventModal()">+ Nuevo Evento</button>
+          </div>
+
+          <div class="events-list" id="events-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- ===== CALENDAR VIEW ===== -->
+        <div class="view" id="view-calendar">
+          <div class="calendar-wrap">
+            <div class="calendar-header">
+              <button class="btn btn-ghost btn-icon" onclick="calNav(-1)">◀</button>
+              <div class="calendar-title" id="cal-title"></div>
+              <button class="btn btn-ghost btn-icon" onclick="calNav(1)">▶</button>
+              <button class="btn btn-secondary btn-sm" onclick="calToday()">Hoy</button>
+            </div>
+            <div class="calendar-grid" id="calendar-grid">
+              <!-- Day labels -->
+              <div class="cal-day-label">Dom</div>
+              <div class="cal-day-label">Lun</div>
+              <div class="cal-day-label">Mar</div>
+              <div class="cal-day-label">Mié</div>
+              <div class="cal-day-label">Jue</div>
+              <div class="cal-day-label">Vie</div>
+              <div class="cal-day-label">Sáb</div>
+            </div>
+          </div>
+
+          <!-- Day detail panel -->
+          <div id="cal-day-detail" style="margin-top:20px; display:none;">
+            <div class="section-header">
+              <div class="section-title" id="cal-detail-title">📅 Eventos del día</div>
+              <button class="btn btn-ghost btn-sm"
+                onclick="document.getElementById('cal-day-detail').style.display='none'">✕ Cerrar</button>
+            </div>
+            <div class="events-list" id="cal-day-events"></div>
+          </div>
+        </div>
+
+        <!-- ===== FOLLOW-UPS VIEW ===== -->
+        <div class="view" id="view-followups">
+          <div class="filter-bar">
+            <button class="filter-btn active" data-fu-filter="all" onclick="setFuFilter('all', this)">Todos</button>
+            <button class="filter-btn hot" data-fu-filter="overdue" onclick="setFuFilter('overdue', this)">⚠️
+              Vencidos</button>
+            <button class="filter-btn warm" data-fu-filter="soon" onclick="setFuFilter('soon', this)">⏰
+              Próximos</button>
+            <button class="filter-btn" data-fu-filter="weekly" onclick="setFuFilter('weekly', this)">📆
+              Semanales</button>
+            <button class="filter-btn" data-fu-filter="monthly" onclick="setFuFilter('monthly', this)">🗒️
+              Mensuales</button>
+          </div>
+          <div class="followup-list" id="followups-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- ===== MARKETING VIEW ===== -->
+        <div class="view" id="view-marketing">
+
+          <!-- Navegación de mes -->
+          <div class="mkt-month-nav">
+            <button class="btn btn-ghost btn-icon" onclick="mktNavMonth(-1)">◀</button>
+            <div class="mkt-month-label" id="mkt-month-display">Cargando...</div>
+            <button class="btn btn-ghost btn-icon" onclick="mktNavMonth(1)">▶</button>
+            <button class="btn btn-secondary btn-sm"
+              onclick="state.mktMonth=new Date().toISOString().slice(0,7); renderMarketing()">Este mes</button>
+            <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openAddMktModal()">+ Nuevo Plan</button>
+          </div>
+
+          <!-- Stats del mes -->
+          <div class="mkt-stats">
+            <div class="mkt-stat">
+              <div class="mkt-stat-value" id="mkt-stat-total">0</div>
+              <div class="mkt-stat-label">Total</div>
+            </div>
+            <div class="mkt-stat mkt-planned">
+              <div class="mkt-stat-value" id="mkt-stat-planned">0</div>
+              <div class="mkt-stat-label">📋 Planificados</div>
+            </div>
+            <div class="mkt-stat mkt-inprogress">
+              <div class="mkt-stat-value" id="mkt-stat-active">0</div>
+              <div class="mkt-stat-label">⚡ En progreso</div>
+            </div>
+            <div class="mkt-stat mkt-done">
+              <div class="mkt-stat-value" id="mkt-stat-done">0</div>
+              <div class="mkt-stat-label">✅ Completados</div>
+            </div>
+          </div>
+
+          <!-- Filtros de estado -->
+          <div class="filter-bar">
+            <button class="filter-btn active" data-mkt-filter="all" onclick="setMktFilter('all', this)">Todos</button>
+            <button class="filter-btn" data-mkt-filter="planned" onclick="setMktFilter('planned', this)">📋
+              Planificado</button>
+            <button class="filter-btn warm" data-mkt-filter="inprogress" onclick="setMktFilter('inprogress', this)">⚡ En
+              progreso</button>
+            <button class="filter-btn" data-mkt-filter="done" onclick="setMktFilter('done', this)">✅ Completado</button>
+            <button class="filter-btn hot" data-mkt-filter="cancelled" onclick="setMktFilter('cancelled', this)">❌
+              Cancelado</button>
+          </div>
+
+          <!-- Lista de planes -->
+          <div class="mkt-list" id="mkt-list">
+            <!-- Populated by JS -->
+          </div>
+
+        </div>
+
+        <!-- ===== IDEAS DE CONTENIDO VIEW ===== -->
+        <div class="view" id="view-content">
+
+          <!-- Navegación de mes -->
+          <div class="mkt-month-nav">
+            <button class="btn btn-ghost btn-icon" onclick="contentNavMonth(-1)">◀</button>
+            <div class="mkt-month-label" id="cnt-month-display">Cargando...</div>
+            <button class="btn btn-ghost btn-icon" onclick="contentNavMonth(1)">▶</button>
+            <button class="btn btn-secondary btn-sm" onclick="state.contentMonth=new Date().toISOString().slice(0,7); renderContent()">Este mes</button>
+          </div>
+
+          <!-- Mini stats por columna -->
+          <div class="cnt-quick-stats">
+            <div class="cnt-qs" style="--col:#7c5cfc">💡 <strong id="cnt-count-idea">0</strong> Ideas</div>
+            <div class="cnt-qs" style="--col:#ffa502">⚙️ <strong id="cnt-count-production">0</strong> Producción</div>
+            <div class="cnt-qs" style="--col:#1e90ff">👀 <strong id="cnt-count-review">0</strong> Revisión</div>
+            <div class="cnt-qs" style="--col:#2ed573">✅ <strong id="cnt-count-published">0</strong> Publicados</div>
+          </div>
+
+          <!-- Tablero Kanban -->
+          <div class="cnt-board" id="cnt-board">
+            <!-- Populated by JS -->
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ======= TOAST CONTAINER ======= -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ======= CONFIRM DIALOG ======= -->
+  <div class="confirm-overlay" id="confirm-overlay">
+    <div class="confirm-box">
+      <h3 id="confirm-title">¿Estás seguro?</h3>
+      <p id="confirm-msg">Esta acción no se puede deshacer.</p>
+      <div class="confirm-actions">
+        <button class="btn btn-secondary" onclick="closeConfirm(false)">Cancelar</button>
+        <button class="btn btn-danger" id="confirm-ok-btn" onclick="closeConfirm(true)">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= MODAL: IDEAS DE CONTENIDO ======= -->
+  <div class="modal-overlay" id="cnt-modal">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-header">
+        <h2 id="cnt-modal-title">💡 Nueva Idea de Contenido</h2>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('cnt-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="cnt-id" />
+
+        <div class="form-group">
+          <label class="form-label">Título de la idea *</label>
+          <input type="text" class="form-control" id="cnt-title" placeholder="Ej: Reel mostrando propiedad en zona norte" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tipo de contenido</label>
+            <select class="form-control" id="cnt-type">
+              <option value="post">🖼️ Post / Imagen</option>
+              <option value="reel">🎥 Reel / Video</option>
+              <option value="story">⭕ Story</option>
+              <option value="carousel">🎠 Carrusel</option>
+              <option value="blog">📝 Blog / Artículo</option>
+              <option value="email">📧 Email / Newsletter</option>
+              <option value="live">🔴 Live / Directo</option>
+              <option value="idea">💡 Idea general</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Plataforma</label>
+            <select class="form-control" id="cnt-platform">
+              <option value="instagram">📸 Instagram</option>
+              <option value="facebook">👤 Facebook</option>
+              <option value="tiktok">🎵 TikTok</option>
+              <option value="linkedin">💼 LinkedIn</option>
+              <option value="whatsapp">💬 WhatsApp</option>
+              <option value="youtube">▶️ YouTube</option>
+              <option value="blog">🌐 Blog / Web</option>
+              <option value="all">📡 Multicanal</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Mes</label>
+            <input type="month" class="form-control" id="cnt-month" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estado inicial</label>
+            <select class="form-control" id="cnt-status">
+              <option value="idea">💡 Idea</option>
+              <option value="production">⚙️ En producción</option>
+              <option value="review">👀 En revisión</option>
+              <option value="published">✅ Publicado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Caption / Texto del post</label>
+          <textarea class="form-control" id="cnt-caption" placeholder="Escribe el texto que acompañará la publicación..." style="min-height:90px"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Hashtags</label>
+          <input type="text" class="form-control" id="cnt-hashtags" placeholder="#inmobi #propiedades #colombia" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notas / Ideas extra</label>
+          <textarea class="form-control" id="cnt-notes" placeholder="Detalles de producción, referencias, música, etc."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('cnt-modal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveContent()">💾 Guardar Idea</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= MODAL: ADD/EDIT CLIENT ======= -->
+  <div class="modal-overlay" id="client-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="client-modal-title">➕ Nuevo Cliente</h2>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('client-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="client-id" />
+
+        <div class="form-group">
+          <label class="form-label">Nombre completo *</label>
+          <input type="text" class="form-control" id="client-name" placeholder="Ej: Juan García" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Teléfono</label>
+            <input type="tel" class="form-control" id="client-phone" placeholder="+57 300 000 0000" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-control" id="client-email" placeholder="correo@ejemplo.com" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Estado del cliente</label>
+          <div class="radio-group">
+            <input type="radio" name="client-status" id="status-hot" value="hot" class="radio-option" />
+            <label for="status-hot" class="radio-label hot">🔥 Caliente</label>
+
+            <input type="radio" name="client-status" id="status-warm" value="warm" class="radio-option" checked />
+            <label for="status-warm" class="radio-label warm">🌡️ Tibio</label>
+
+            <input type="radio" name="client-status" id="status-cold" value="cold" class="radio-option" />
+            <label for="status-cold" class="radio-label cold">❄️ Frío</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Frecuencia de seguimiento</label>
+          <div class="radio-group">
+            <input type="radio" name="follow-type" id="follow-weekly" value="weekly" class="radio-option" checked />
+            <label for="follow-weekly" class="radio-label weekly">📆 Semanal</label>
+
+            <input type="radio" name="follow-type" id="follow-monthly" value="monthly" class="radio-option" />
+            <label for="follow-monthly" class="radio-label monthly">🗒️ Mensual</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Interés / Propiedad buscada</label>
+          <input type="text" class="form-control" id="client-interest"
+            placeholder="Ej: Apartamento 2 hab en zona norte" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notas generales</label>
+          <textarea class="form-control" id="client-notes"
+            placeholder="Información adicional del cliente..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('client-modal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveClient()">💾 Guardar Cliente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= MODAL: ADD EVENT ======= -->
+  <div class="modal-overlay" id="event-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="event-modal-title">📅 Nuevo Evento</h2>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('event-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="event-id" />
+        <input type="hidden" id="event-client-id" />
+
+        <div class="form-group">
+          <label class="form-label">Tipo de evento</label>
+          <div class="radio-group">
+            <input type="radio" name="event-type" id="etype-call" value="call" class="radio-option" checked />
+            <label for="etype-call" class="radio-label weekly">📞 Llamada</label>
+
+            <input type="radio" name="event-type" id="etype-visit" value="visit" class="radio-option" />
+            <label for="etype-visit" class="radio-label monthly">🏡 Visita Guiada</label>
+          </div>
+        </div>
+
+        <div class="form-group" id="event-client-group">
+          <label class="form-label">Cliente</label>
+          <select class="form-control" id="event-client-select">
+            <option value="">— Seleccionar cliente —</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Fecha *</label>
+            <input type="date" class="form-control" id="event-date" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Hora *</label>
+            <input type="time" class="form-control" id="event-time" />
+          </div>
+        </div>
+
+        <div class="form-group" id="visit-address-group" style="display:none">
+          <label class="form-label">Dirección de la propiedad</label>
+          <input type="text" class="form-control" id="event-address" placeholder="Ej: Calle 80 #45-12, Bogotá" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notas del evento</label>
+          <textarea class="form-control" id="event-notes" placeholder="Detalles adicionales..."
+            style="min-height:80px"></textarea>
+        </div>
+
+        <div class="form-group" style="margin-top:12px;display:flex;align-items:center;gap:10px;background:rgba(124,92,252,0.1);border:1px solid rgba(124,92,252,0.3);border-radius:8px;padding:10px 12px">
+          <input type="checkbox" id="event-sync-gcal" checked style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer" />
+          <label for="event-sync-gcal" style="margin:0;cursor:pointer;font-size:13px;font-weight:500">
+            📅 Agendar automáticamente en Google Calendar (antonydiezcaceres@gmail.com)
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('event-modal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveEvent()">💾 Guardar Evento</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= MODAL: EXPORT ======= -->
+  <div class="modal-overlay" id="export-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>💾 Exportar / Importar Datos</h2>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('export-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-sm text-muted" style="margin-bottom:16px">Exporta o importa tus clientes en formato Excel (.xlsx / .csv) o realiza una copia de seguridad completa del sistema.</p>
+
+        <!-- SECCIÓN EXCEL -->
+        <div style="background:var(--card-bg, #1a1b26);border:1px solid var(--border, #2e303e);border-radius:10px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            <span>📊</span> <span>Clientes en Excel (.xlsx / .csv)</span>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+            <button class="btn btn-primary" style="flex:1" onclick="exportClientsToExcel()">
+              ⬇️ Descargar Excel (.xlsx)
+            </button>
+          </div>
+          <div style="margin-top:10px">
+            <label class="form-label" style="font-size:12px">Importar clientes desde Excel o CSV:</label>
+            <div style="display:flex;gap:8px">
+              <input type="file" accept=".xlsx, .xls, .csv" id="modal-excel-file" class="form-control" style="padding:6px;font-size:12px" />
+              <button class="btn btn-secondary btn-sm" onclick="importClientsFromModalExcel()">📥 Importar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECCIÓN COPIA COMPLETA JSON -->
+        <div style="background:var(--card-bg, #1a1b26);border:1px solid var(--border, #2e303e);border-radius:10px;padding:14px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            <span>💾</span> <span>Copia de seguridad completa (JSON)</span>
+          </div>
+          <button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="exportData()">⬇️ Exportar copia JSON</button>
+          <label class="form-label" style="font-size:12px">Restaurar desde archivo JSON:</label>
+          <div style="display:flex;gap:8px">
+            <input type="file" accept=".json" id="import-file" class="form-control" style="padding:6px;font-size:12px" />
+            <button class="btn btn-secondary btn-sm" onclick="importData()">⬆️ Restaurar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= MODAL: MARKETING ======= -->
+  <div class="modal-overlay" id="mkt-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="mkt-modal-title">📣 Nuevo Plan de Marketing</h2>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('mkt-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="mkt-id" />
+
+        <div class="form-group">
+          <label class="form-label">Título del plan *</label>
+          <input type="text" class="form-control" id="mkt-title" placeholder="Ej: Campaña email septiembre" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Mes del plan *</label>
+            <input type="month" class="form-control" id="mkt-month" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tipo de acción</label>
+            <select class="form-control" id="mkt-type">
+              <option value="social">📱 Redes Sociales</option>
+              <option value="email">📧 Email / Newsletter</option>
+              <option value="event">🎪 Evento Presencial</option>
+              <option value="ads">📺 Publicidad / Ads</option>
+              <option value="content">📝 Contenido / Blog</option>
+              <option value="network">🤝 Networking</option>
+              <option value="promo">🎁 Promoción / Oferta</option>
+              <option value="other">📌 Otro</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select class="form-control" id="mkt-status">
+              <option value="planned">📋 Planificado</option>
+              <option value="inprogress">⚡ En progreso</option>
+              <option value="done">✅ Completado</option>
+              <option value="cancelled">❌ Cancelado</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Presupuesto</label>
+            <input type="text" class="form-control" id="mkt-budget" placeholder="Ej: $500.000" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Objetivo / Meta</label>
+          <input type="text" class="form-control" id="mkt-goal" placeholder="Ej: Generar 20 leads en el mes" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Descripción / Notas</label>
+          <textarea class="form-control" id="mkt-desc"
+            placeholder="Detalla la estrategia, canales, mensajes clave..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('mkt-modal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveMkt()">💾 Guardar Plan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= DRAWER: CLIENT DETAIL ======= -->
+  <div class="drawer-overlay" id="client-drawer">
+    <div class="drawer">
+      <div class="drawer-header">
+        <div class="drawer-avatar" id="drawer-avatar">?</div>
+        <div style="flex:1;min-width:0">
+          <div class="flex items-center gap-8 mb-4">
+            <div class="drawer-client-name" id="drawer-name">—</div>
+            <span class="status-badge" id="drawer-status-badge">—</span>
+          </div>
+          <div class="drawer-client-meta" id="drawer-meta"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <button class="btn btn-secondary btn-sm" onclick="editCurrentClient()">✏️ Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteCurrentClient()">🗑️ Eliminar</button>
+          <button class="btn btn-ghost btn-icon" onclick="closeDrawer()" style="font-size:16px">✕</button>
+        </div>
+      </div>
+
+      <div class="drawer-body">
+        <div class="drawer-tabs" id="drawer-tabs">
+          <button class="drawer-tab active" onclick="switchTab('conv')">💬 Conversaciones</button>
+          <button class="drawer-tab" onclick="switchTab('events')">📅 Eventos</button>
+          <button class="drawer-tab" onclick="switchTab('info')">ℹ️ Información</button>
+        </div>
+
+        <!-- Tab: Conversaciones -->
+        <div class="tab-content active" id="tab-conv">
+          <div style="margin-bottom:14px">
+            <label class="form-label">Nueva entrada de conversación</label>
+            <textarea class="form-control" id="new-conv-text"
+              placeholder="¿Qué te dijo el cliente? Escribe aquí los detalles de la conversación..."></textarea>
+            <div style="text-align:right;margin-top:8px">
+              <button class="btn btn-primary btn-sm" onclick="addConversation()">➕ Agregar</button>
+            </div>
+          </div>
+          <div class="conversation-list" id="conv-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Tab: Eventos -->
+        <div class="tab-content" id="tab-events">
+          <div style="margin-bottom:14px;text-align:right">
+            <button class="btn btn-primary btn-sm" onclick="openAddEventForClient()">📅 + Agregar Evento</button>
+          </div>
+          <div class="events-list" id="drawer-events-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Tab: Información -->
+        <div class="tab-content" id="tab-info">
+          <div id="client-info-panel">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= MOBILE BOTTOM NAV ======= -->
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <button class="mob-nav-item active" data-mob-view="dashboard" onclick="navigate('dashboard'); setMobActive(this)">
+      <span class="mob-icon">📊</span>
+      <span>Inicio</span>
+    </button>
+    <button class="mob-nav-item" data-mob-view="clients" onclick="navigate('clients'); setMobActive(this)">
+      <span class="mob-icon">👥</span>
+      <span>Clientes</span>
+    </button>
+    <button class="mob-nav-item" data-mob-view="agenda" onclick="navigate('agenda'); setMobActive(this)">
+      <span class="mob-icon">📅</span>
+      <span>Agenda</span>
+    </button>
+    <button class="mob-nav-item" data-mob-view="followups" onclick="navigate('followups'); setMobActive(this)">
+      <span class="mob-icon">🔔</span>
+      <span>Seguim.</span>
+      <span class="mob-badge" id="mob-followup-badge"></span>
+    </button>
+    <button class="mob-nav-item" data-mob-view="calendar" onclick="navigate('calendar'); setMobActive(this)">
+      <span class="mob-icon">🗓️</span>
+      <span>Calendario</span>
+    </button>
+    <button class="mob-nav-item" data-mob-view="marketing" onclick="navigate('marketing'); setMobActive(this)">
+      <span class="mob-icon">📣</span>
+      <span>Marketing</span>
+    </button>
+    <button class="mob-nav-item" data-mob-view="content" onclick="navigate('content'); setMobActive(this)">
+      <span class="mob-icon">💡</span>
+      <span>Contenido</span>
+    </button>
+  </nav>
+
+  <!-- Firebase (módulo ES) — sincronización con Firestore compatible con file:/// y HTTP -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
+    import {
+      getFirestore,
+      doc,
+      setDoc,
+      getDoc,
+      onSnapshot,
+      serverTimestamp,
+    } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey:            'AIzaSyDK4TJ8iI7G-2MH89FN9MPRozxqa7-YuSU',
+      authDomain:        'crm-inmobiliario-5b510.firebaseapp.com',
+      projectId:         'crm-inmobiliario-5b510',
+      storageBucket:     'crm-inmobiliario-5b510.firebasestorage.app',
+      messagingSenderId: '824824538776',
+      appId:             '1:824824538776:web:dc4d18b7ef23f3410712ed',
+      measurementId:     'G-88BKK4BBL9',
+    };
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+      const DATA_DOC = doc(db, 'crm', 'data');
+
+      let _syncCallback = null;
+      let _unsubscribe  = null;
+
+      async function fbSave(clients, events, marketing = [], content = []) {
+        try {
+          await setDoc(DATA_DOC, {
+            clients,
+            events,
+            marketing,
+            content,
+            updatedAt: serverTimestamp(),
+          });
+        } catch (err) {
+          console.warn('[Firebase] Error al guardar:', err.message);
+        }
+      }
+
+      async function fbLoad() {
+        try {
+          const snap = await getDoc(DATA_DOC);
+          if (snap.exists()) {
+            const data = snap.data();
+            return {
+              clients:   data.clients   || [],
+              events:    data.events    || [],
+              marketing: data.marketing || [],
+              content:   data.content   || [],
+            };
+          }
+          return null;
+        } catch (err) {
+          console.warn('[Firebase] Error al cargar:', err.message);
+          return null;
+        }
+      }
+
+      function fbOnSync(callback) {
+        _syncCallback = callback;
+        if (_unsubscribe) _unsubscribe();
+
+        _unsubscribe = onSnapshot(DATA_DOC, (snap) => {
+          if (!snap.exists()) return;
+          const data = snap.data();
+          if (typeof _syncCallback === 'function') {
+            _syncCallback({
+              clients:   data.clients   || [],
+              events:    data.events    || [],
+              marketing: data.marketing || [],
+              content:   data.content   || [],
+              updatedAt: data.updatedAt,
+            });
+          }
+        }, (err) => {
+          console.warn('[Firebase] Error en listener de tiempo real:', err.message);
+        });
+      }
+
+      window.FB = {
+        save:   fbSave,
+        load:   fbLoad,
+        onSync: fbOnSync,
+      };
+
+      window.dispatchEvent(new Event('firebase-ready'));
+      console.log('[Firebase] ✅ Conectado a Firestore en tiempo real — crm-inmobiliario-5b510');
+    } catch (e) {
+      console.warn('[Firebase] Error inicializando SDK:', e);
+    }
+  </script>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => { });
+      });
+    }
+  </script>
+</body>
+
+</html>
