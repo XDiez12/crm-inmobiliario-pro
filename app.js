@@ -493,44 +493,61 @@ function openAddClientModal(prefill = {}) {
 function openEditClientModal(id) {
   const c = getClient(id);
   if (!c) return;
-  document.getElementById('client-modal-title').textContent = '✏️ Editar Cliente';
+  document.getElementById('client-modal-title').textContent = '✏️ Editar Contacto';
   document.getElementById('client-id').value = c.id;
-  document.getElementById('client-name').value = c.name;
+  document.getElementById('client-name').value = c.name || '';
   document.getElementById('client-phone').value = c.phone || '';
   document.getElementById('client-email').value = c.email || '';
   document.getElementById('client-interest').value = c.interest || '';
   document.getElementById('client-notes').value = c.notes || '';
-  document.querySelector(`input[name="client-status"][value="${c.status}"]`).checked = true;
-  document.querySelector(`input[name="follow-type"][value="${c.followType}"]`).checked = true;
+
+  // Seleccionar estado de forma segura
+  const statusVal = c.status && ['hot', 'warm', 'cold'].includes(c.status) ? c.status : 'warm';
+  const statusRadio = document.querySelector(`input[name="client-status"][value="${statusVal}"]`) || document.querySelector('input[name="client-status"][value="warm"]');
+  if (statusRadio) statusRadio.checked = true;
+
+  // Seleccionar seguimiento de forma segura
+  const followVal = c.followType && ['weekly', 'monthly'].includes(c.followType) ? c.followType : 'weekly';
+  const followRadio = document.querySelector(`input[name="follow-type"][value="${followVal}"]`) || document.querySelector('input[name="follow-type"][value="weekly"]');
+  if (followRadio) followRadio.checked = true;
+
   openModal('client-modal');
+  // Enfocar directamente en el campo de teléfono para que el usuario pueda escribir de inmediato
+  setTimeout(() => {
+    const phoneInput = document.getElementById('client-phone');
+    if (phoneInput) {
+      phoneInput.focus();
+      phoneInput.select();
+    }
+  }, 220);
 }
 
 function saveClient() {
   const name = document.getElementById('client-name').value.trim();
   if (!name) { toast('El nombre del cliente es requerido', 'error'); return; }
 
-  const id      = document.getElementById('client-id').value;
-  const status  = document.querySelector('input[name="client-status"]:checked').value;
-  const follow  = document.querySelector('input[name="follow-type"]:checked').value;
-  const today   = todayStr();
+  const id       = document.getElementById('client-id').value;
+  const statusEl = document.querySelector('input[name="client-status"]:checked');
+  const status   = statusEl ? statusEl.value : 'warm';
+  const followEl = document.querySelector('input[name="follow-type"]:checked');
+  const follow   = followEl ? followEl.value : 'weekly';
+  const today    = todayStr();
 
   if (id) {
     // Edit
     const c = getClient(id);
     if (!c) return;
-    c.name      = name;
-    c.phone     = document.getElementById('client-phone').value.trim();
-    c.email     = document.getElementById('client-email').value.trim();
-    c.status    = status;
-    c.followType = follow;
-    c.interest  = document.getElementById('client-interest').value.trim();
-    c.notes     = document.getElementById('client-notes').value.trim();
-    // Recalculate nextFollowUp only if followType changed
+    c.name       = name;
+    c.phone      = document.getElementById('client-phone').value.trim();
+    c.email      = document.getElementById('client-email').value.trim();
+    c.status     = status;
+    c.interest   = document.getElementById('client-interest').value.trim();
+    c.notes      = document.getElementById('client-notes').value.trim();
     if (c.followType !== follow) {
       c.nextFollowUp = addDays(today, follow === 'weekly' ? 7 : 30);
     }
     c.followType = follow;
-    toast(`Cliente "${name}" actualizado`, 'success');
+    toast(`Contacto "${name}" actualizado exitosamente 🎉`, 'success');
   } else {
     // New
     const days = follow === 'weekly' ? 7 : 30;
@@ -578,12 +595,112 @@ function editCurrentClient() {
   openEditClientModal(state.currentClientId);
 }
 
+/* ─── CLIENTES — SELECCIÓN MASIVA Y ELIMINACIÓN ─── */
+const selectedClientIds = new Set();
+
+function handleClientCheck(clientId, checked) {
+  if (checked) selectedClientIds.add(clientId);
+  else selectedClientIds.delete(clientId);
+  const card = document.querySelector(`.client-card[data-client-id="${clientId}"]`);
+  if (card) card.classList.toggle('selected', checked);
+  updateBulkClientsBar();
+}
+
+function toggleSelectAllClients(checked) {
+  const visibleCards = document.querySelectorAll('.client-card[data-client-id]');
+  visibleCards.forEach(card => {
+    const id = card.getAttribute('data-client-id');
+    if (checked) selectedClientIds.add(id);
+    else selectedClientIds.delete(id);
+    const cb = card.querySelector('.client-checkbox');
+    if (cb) cb.checked = checked;
+    card.classList.toggle('selected', checked);
+  });
+  updateBulkClientsBar();
+}
+
+function updateBulkClientsBar() {
+  const count = selectedClientIds.size;
+  const countNum = document.getElementById('bulk-count-num');
+  const counterSpan = document.getElementById('selected-counter');
+  const btnDelete = document.getElementById('btn-delete-bulk');
+  const selectAllCb = document.getElementById('select-all-clients');
+
+  if (countNum) countNum.textContent = count;
+  if (counterSpan) {
+    counterSpan.textContent = `${count} ${count === 1 ? 'contacto seleccionado' : 'contactos seleccionados'}`;
+    counterSpan.style.display = count > 0 ? 'inline' : 'none';
+  }
+  if (btnDelete) {
+    btnDelete.style.display = count > 0 ? 'inline-flex' : 'none';
+  }
+
+  const visibleCards = document.querySelectorAll('.client-card[data-client-id]');
+  if (selectAllCb) {
+    if (!visibleCards.length) {
+      selectAllCb.checked = false;
+      selectAllCb.indeterminate = false;
+    } else {
+      const allSelected = Array.from(visibleCards).every(c => selectedClientIds.has(c.getAttribute('data-client-id')));
+      const someSelected = Array.from(visibleCards).some(c => selectedClientIds.has(c.getAttribute('data-client-id')));
+      selectAllCb.checked = allSelected;
+      selectAllCb.indeterminate = !allSelected && someSelected;
+    }
+  }
+}
+
+function deleteSingleClient(clientId) {
+  const c = getClient(clientId);
+  if (!c) return;
+  confirm(`Eliminar a ${c.name}`, 'Se eliminarán también todos sus eventos y conversaciones asociadas. Esta acción no se puede deshacer.')
+    .then(ok => {
+      if (!ok) return;
+      state.clients = state.clients.filter(x => x.id !== c.id);
+      state.events  = state.events.filter(e => e.clientId !== c.id);
+      selectedClientIds.delete(c.id);
+      save();
+      if (state.currentClientId === c.id) closeDrawer();
+      toast(`Contacto "${c.name}" eliminado`, 'info', '🗑️');
+      refreshAll();
+      updateBadges();
+    });
+}
+
+function deleteSelectedClients() {
+  const count = selectedClientIds.size;
+  if (!count) return;
+
+  const msg = count === 1
+    ? '¿Estás seguro de que deseas eliminar este contacto seleccionado? Esta acción no se puede deshacer.'
+    : `¿Estás seguro de que deseas eliminar los ${count} contactos seleccionados? Se eliminarán también todos sus eventos asociados y no se puede deshacer.`;
+
+  confirm(`Eliminar ${count} ${count === 1 ? 'contacto' : 'contactos'}`, msg, `Eliminar (${count})`)
+    .then(ok => {
+      if (!ok) return;
+      const idsToDelete = new Set(selectedClientIds);
+      state.clients = state.clients.filter(c => !idsToDelete.has(c.id));
+      state.events  = state.events.filter(e => !idsToDelete.has(e.clientId));
+      selectedClientIds.clear();
+      save();
+      if (idsToDelete.has(state.currentClientId)) closeDrawer();
+      toast(`Se eliminaron ${count} ${count === 1 ? 'contacto' : 'contactos'} exitosamente`, 'info', '🗑️');
+      refreshAll();
+      updateBadges();
+    });
+}
+
 /* ─── CLIENTES — RENDER ──────────────────────────── */
 function renderClients() {
   const grid   = document.getElementById('clients-grid');
   const search = document.getElementById('client-search').value.toLowerCase();
   const filter = state.clientFilter;
   const today  = todayStr();
+
+  // Limpiar IDs de clientes seleccionados que ya no existen
+  const currentIds = new Set(state.clients.map(c => c.id));
+  for (const id of selectedClientIds) {
+    if (!currentIds.has(id)) selectedClientIds.delete(id);
+  }
 
   let list = state.clients.filter(c => {
     if (filter !== 'all' && c.status !== filter) return false;
@@ -599,6 +716,7 @@ function renderClients() {
       <h3>Sin clientes</h3>
       <p>Agrega tu primer cliente con el botón "+ Nuevo Cliente"</p>
     </div>`;
+    updateBulkClientsBar();
     return;
   }
 
@@ -606,16 +724,24 @@ function renderClients() {
     const overdue = c.nextFollowUp < today;
     const clientEvents = state.events.filter(e => e.clientId === c.id && !e.completed && e.date >= today);
     const nextEvent = clientEvents.sort((a,b) => a.date.localeCompare(b.date))[0];
+    const isChecked = selectedClientIds.has(c.id);
 
     return `
-    <div class="client-card" onclick="openDrawer('${c.id}')">
+    <div class="client-card ${isChecked ? 'selected' : ''}" data-client-id="${c.id}" onclick="openDrawer('${c.id}')">
       <div class="card-top">
+        <div class="client-select-wrap" onclick="event.stopPropagation()">
+          <input type="checkbox" class="client-checkbox" ${isChecked ? 'checked' : ''} onchange="handleClientCheck('${c.id}', this.checked)" title="Seleccionar para eliminar" />
+        </div>
         <div class="client-avatar ${c.status}">${initials(c.name)}</div>
         <div class="client-info">
-          <div class="client-name">${c.name}</div>
-          <div class="client-contact">${c.phone || c.email || 'Sin contacto'}</div>
+          <div class="client-name">${escapeHtml(c.name)}</div>
+          <div class="client-contact">${escapeHtml(c.phone || c.email || 'Sin contacto')}</div>
         </div>
-        <span class="status-badge ${c.status}">${statusLabel(c.status)}</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span class="status-badge ${c.status}">${statusLabel(c.status)}</span>
+          <button class="client-card-edit-btn" onclick="event.stopPropagation(); openEditClientModal('${c.id}')" title="Editar contacto y teléfono">✏️</button>
+          <button class="client-card-delete-btn" onclick="event.stopPropagation(); deleteSingleClient('${c.id}')" title="Eliminar este contacto">🗑️</button>
+        </div>
       </div>
       <div class="card-meta">
         <div class="meta-row">
@@ -634,11 +760,13 @@ function renderClients() {
         ${c.interest ? `
         <div class="meta-row">
           <span class="meta-icon">🏠</span>
-          <span>${c.interest}</span>
+          <span>${escapeHtml(c.interest)}</span>
         </div>` : ''}
       </div>
     </div>`;
   }).join('');
+
+  updateBulkClientsBar();
 }
 
 function setFilter(filter, btn) {
@@ -861,6 +989,9 @@ function saveEvent() {
       toast('Abriendo Google Calendar para agendar en antonydiezcaceres@gmail.com 📅', 'info');
     }, 350);
   }
+
+  // Verificar notificaciones de inmediato para el nuevo evento
+  checkNotifications();
 }
 
 function toggleEventComplete(evId) {
@@ -1353,7 +1484,7 @@ function processExcelFile(file, modalId = null) {
         const name = normalized['nombre completo'] || normalized['nombre'] || normalized['cliente'] || normalized['name'] || normalized['prospecto'];
         if (!name) return; // Si no tiene nombre, se ignora la fila
 
-        const phone    = normalized['telefono'] || normalized['celular'] || normalized['movil'] || normalized['phone'] || normalized['tel'] || '';
+        const phone    = normalized['telefono'] || normalized['celular'] || normalized['movil'] || normalized['phone'] || normalized['tel'] || normalized['numero'] || normalized['numero de telefono'] || normalized['numero celular'] || normalized['whatsapp'] || normalized['wsp'] || normalized['contacto'] || normalized['nro'] || normalized['telf'] || '';
         const email    = normalized['correo electronico'] || normalized['correo'] || normalized['email'] || normalized['mail'] || '';
         const interest = normalized['propiedad / interes'] || normalized['propiedad'] || normalized['interes'] || normalized['inmueble'] || normalized['proyecto'] || '';
         const notes    = normalized['notas'] || normalized['observaciones'] || normalized['comentarios'] || normalized['notes'] || '';
@@ -1674,20 +1805,34 @@ function checkNotifications() {
       }
     }
 
-    // Todos los eventos: alerta a 30 min
-    const key30 = `${ev.id}-30`;
-    if (diff >= -5 && diff <= 32 && !_notifiedIds.has(key30)) {
+    // ⏰ Alerta a los 30 minutos antes
+    const key30 = `${ev.id}-30m`;
+    if (diff >= 25 && diff <= 33 && !_notifiedIds.has(key30)) {
       _notifiedIds.add(key30);
       const c = getClient(ev.clientId);
       const label = ev.type === 'call' ? 'Llamada' : 'Visita Guiada';
       if (!soundPlayed) { playSound('alert'); soundPlayed = true; }
       showBrowserNotification(
-        diff <= 0
-          ? `🚨 ${label} ¡AHORA!`
-          : `⏰ ${label} en ${Math.round(diff)} min`,
+        `⏰ En 30 minutos: ${label}`,
+        c ? `Cliente: ${c.name} · Hora: ${ev.time}${ev.address ? '\n' + ev.address : ''}` : `Hora: ${ev.time}`,
+        'urgent'
+      );
+      toast(`⏰ Recordatorio: ${label} con ${c ? c.name : 'cliente'} en 30 minutos (${ev.time})`, 'warning');
+    }
+
+    // 🚨 Alerta en el momento del evento (¡Es la hora!)
+    const keyNow = `${ev.id}-now`;
+    if (diff >= -5 && diff <= 3 && !_notifiedIds.has(keyNow)) {
+      _notifiedIds.add(keyNow);
+      const c = getClient(ev.clientId);
+      const label = ev.type === 'call' ? 'Llamada' : 'Visita Guiada';
+      if (!soundPlayed) { playSound('alert'); soundPlayed = true; }
+      showBrowserNotification(
+        `🚨 ¡Es la hora! ${label}`,
         c ? `Cliente: ${c.name} · ${ev.time}` : ev.time,
         'urgent'
       );
+      toast(`🚨 ¡Es la hora! ${label} con ${c ? c.name : 'cliente'} (${ev.time})`, 'error');
     }
   });
 
@@ -2171,8 +2316,8 @@ function init() {
   document.addEventListener('click',     onFirstInteraction);
   document.addEventListener('touchstart', onFirstInteraction);
 
-  // Verificar notificaciones periódicamente cada 2 minutos
-  setInterval(checkNotifications, 2 * 60 * 1000);
+  // Verificar notificaciones periódicamente cada 30 segundos (máxima precisión)
+  setInterval(checkNotifications, 30 * 1000);
   // Primera verificación a los 3 segundos
   setTimeout(checkNotifications, 3000);
 }

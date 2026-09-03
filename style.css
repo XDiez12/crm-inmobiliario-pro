@@ -382,6 +382,12 @@ body {
   overflow: hidden;
 }
 
+.client-card.selected {
+  border-color: var(--primary);
+  background: rgba(124, 92, 252, 0.05);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
 .client-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-md);
@@ -390,7 +396,51 @@ body {
 }
 
 .client-card .card-top {
-  display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px;
+  display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px;
+}
+
+.client-select-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 13px;
+  flex-shrink: 0;
+}
+
+.client-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--primary);
+  border-radius: 4px;
+}
+
+.client-card-edit-btn,
+.client-card-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 6px;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.65;
+}
+
+.client-card-edit-btn:hover {
+  color: var(--primary);
+  background: rgba(124, 92, 252, 0.12);
+  opacity: 1;
+}
+
+.client-card-delete-btn:hover {
+  color: var(--danger);
+  background: rgba(255, 71, 87, 0.12);
+  opacity: 1;
 }
 
 .client-avatar {
